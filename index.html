@@ -1,0 +1,555 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Paguyuban Rukun Kematian</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: { colors: { primary: '#064e3b', accent: '#10b981' } }
+            }
+        }
+    </script>
+    <style>
+        .sidebar-link.active { background-color: #064e3b; color: white; }
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        @media print { .no-print { display: none !important; } }
+    </style>
+</head>
+<body class="bg-gray-100 dark:bg-gray-900 text-gray-800 dark:text-gray-200 transition-colors duration-300">
+
+    <!-- LOGIN PAGE -->
+    <div id="loginPage" class="min-h-screen flex items-center justify-center bg-primary p-4">
+        <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-md fade-in">
+            <div class="text-center mb-6">
+                <i class="fa-solid fa-hands-holding-circle text-5xl text-accent mb-3"></i>
+                <h1 class="text-2xl font-bold text-primary dark:text-white">Paguyuban Rukun Kematian</h1>
+                <p class="text-gray-500 text-sm">Silakan login untuk melanjutkan</p>
+            </div>
+            <div id="loginError" class="hidden bg-red-100 text-red-700 p-3 rounded mb-4 text-sm"></div>
+            <input type="text" id="loginUser" placeholder="Username" class="w-full p-3 mb-4 border rounded-lg dark:bg-gray-700 dark:border-gray-600">
+            <input type="password" id="loginPass" placeholder="Password" class="w-full p-3 mb-6 border rounded-lg dark:bg-gray-700 dark:border-gray-600">
+            <button onclick="doLogin()" class="w-full bg-primary hover:bg-accent text-white p-3 rounded-lg font-bold transition">LOGIN</button>
+        </div>
+    </div>
+
+    <!-- MAIN APP -->
+    <div id="mainApp" class="hidden flex min-h-screen">
+        
+        <!-- Sidebar -->
+        <aside id="sidebar" class="no-print w-64 bg-white dark:bg-gray-800 shadow-lg fixed h-full z-20 transition-transform duration-300 lg:translate-x-0 -translate-x-full">
+            <div class="p-4 border-b dark:border-gray-700 flex justify-between items-center">
+                <h2 class="font-bold text-primary dark:text-white text-lg"><i class="fa-solid fa-hands-holding-circle mr-2"></i>PRK</h2>
+                <button class="lg:hidden text-xl" onclick="toggleSidebar()"><i class="fa-solid fa-times"></i></button>
+            </div>
+            <nav class="p-4 space-y-2">
+                <a href="#" onclick="showPage('dashboard')" class="sidebar-link active flex items-center p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"><i class="fa-solid fa-gauge mr-3"></i> Dashboard</a>
+                <a href="#" onclick="showPage('anggota')" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"><i class="fa-solid fa-users mr-3"></i> Data Anggota</a>
+                <a href="#" onclick="showPage('iuran')" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"><i class="fa-solid fa-money-bill-wave mr-3"></i> Iuran</a>
+                <a href="#" onclick="showPage('santunan')" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"><i class="fa-solid fa-hand-holding-heart mr-3"></i> Santunan</a>
+                <a href="#" onclick="showPage('laporan')" class="sidebar-link flex items-center p-3 rounded-lg hover:bg-gray-200 dark:hover:bg-gray-700 transition"><i class="fa-solid fa-file-invoice mr-3"></i> Laporan</a>
+            </nav>
+            <div class="absolute bottom-0 w-full p-4 border-t dark:border-gray-700">
+                <button onclick="doLogout()" class="w-full bg-red-500 hover:bg-red-600 text-white p-2 rounded-lg"><i class="fa-solid fa-sign-out-alt mr-2"></i> Logout</button>
+            </div>
+        </aside>
+
+        <!-- Main Content -->
+        <main class="flex-1 lg:ml-64 p-4 md:p-8">
+            <!-- Top Bar -->
+            <div class="no-print flex justify-between items-center mb-6">
+                <button class="lg:hidden text-2xl mr-4" onclick="toggleSidebar()"><i class="fa-solid fa-bars"></i></button>
+                <h1 id="pageTitle" class="text-2xl font-bold text-primary dark:text-white">Dashboard</h1>
+                <button onclick="toggleDarkMode()" class="p-2 rounded-full hover:bg-gray-200 dark:hover:bg-gray-700"><i id="darkIcon" class="fa-solid fa-moon"></i></button>
+            </div>
+
+            <!-- PAGES CONTAINER -->
+            <div id="pageContent" class="fade-in">
+                <!-- Content will be injected here -->
+            </div>
+        </main>
+    </div>
+
+    <script>
+        // --- CONFIG ---
+        const API_URL = 'MASUKKAN_URL_WEB_APP_GOOGLE_APPS_SCRIPT_ANDA_DISINI';
+        let session = localStorage.getItem('prk_session');
+
+        // --- INIT --- 
+        window.onload = () => {
+            if(session) {
+                document.getElementById('loginPage').classList.add('hidden');
+                document.getElementById('mainApp').classList.remove('hidden');
+                showPage('dashboard');
+            }
+            if(localStorage.getItem('theme') === 'dark') document.documentElement.classList.add('dark');
+            updateDarkIcon();
+        };
+
+        // --- AUTH ---
+        async function doLogin() {
+            const u = document.getElementById('loginUser').value;
+            const p = document.getElementById('loginPass').value;
+            const errDiv = document.getElementById('loginError');
+            errDiv.classList.add('hidden');
+            
+            try {
+                const res = await fetch(`${API_URL}?action=login&username=${u}&password=${p}`);
+                const data = await res.json();
+                if(data.success) {
+                    localStorage.setItem('prk_session', 'true');
+                    session = 'true';
+                    document.getElementById('loginPage').classList.add('hidden');
+                    document.getElementById('mainApp').classList.remove('hidden');
+                    showPage('dashboard');
+                } else {
+                    errDiv.textContent = data.message;
+                    errDiv.classList.remove('hidden');
+                }
+            } catch(e) {
+                errDiv.textContent = "Gagal terhubung ke server";
+                errDiv.classList.remove('hidden');
+            }
+        }
+
+        function doLogout() {
+            localStorage.removeItem('prk_session');
+            session = null;
+            document.getElementById('mainApp').classList.add('hidden');
+            document.getElementById('loginPage').classList.remove('hidden');
+        }
+
+        // --- UI HELPERS ---
+        function toggleSidebar() { document.getElementById('sidebar').classList.toggle('-translate-x-full'); }
+        function toggleDarkMode() {
+            document.documentElement.classList.toggle('dark');
+            localStorage.setItem('theme', document.documentElement.classList.contains('dark') ? 'dark' : 'light');
+            updateDarkIcon();
+            // Redraw chart if exists
+            if(document.getElementById('financeChart')) showPage('dashboard'); 
+        }
+        function updateDarkIcon() {
+            const icon = document.getElementById('darkIcon');
+            if(document.documentElement.classList.contains('dark')) icon.className = 'fa-solid fa-sun';
+            else icon.className = 'fa-solid fa-moon';
+        }
+
+        function showPage(page) {
+            const links = document.querySelectorAll('.sidebar-link');
+            links.forEach(l => l.classList.remove('active'));
+            event.target.closest('.sidebar-link').classList.add('active');
+            
+            document.getElementById('pageTitle').innerText = page.charAt(0).toUpperCase() + page.slice(1);
+            const content = document.getElementById('pageContent');
+            content.innerHTML = '<div class="flex justify-center items-center h-64"><i class="fa-solid fa-spinner fa-spin text-4xl text-accent"></i></div>';
+
+            if(page === 'dashboard') renderDashboard();
+            else if(page === 'anggota') renderAnggota();
+            else if(page === 'iuran') renderIuran();
+            else if(page === 'santunan') renderSantunan();
+            else if(page === 'laporan') renderLaporan();
+            
+            // Close sidebar on mobile
+            if(window.innerWidth < 1024) toggleSidebar();
+        }
+
+        async function apiRequest(params) {
+            const url = new URL(API_URL);
+            Object.entries(params).forEach(([k, v]) => url.searchParams.append(k, v));
+            const res = await fetch(url);
+            return await res.json();
+        }
+
+        function formatRp(angka) {
+            return new Intl.NumberFormat('id-ID', { style: 'currency', currency: 'IDR', minimumFractionDigits: 0 }).format(angka);
+        }
+
+        function generateId(prefix) {
+            return prefix + '-' + Date.now().toString(36).toUpperCase();
+        }
+
+        // --- DASHBOARD ---
+        async function renderDashboard() {
+            const content = document.getElementById('pageContent');
+            try {
+                const [anggotaRes, iuranRes, santunanRes] = await Promise.all([
+                    apiRequest({action: 'read', sheet: 'anggota'}),
+                    apiRequest({action: 'read', sheet: 'iuran'}),
+                    apiRequest({action: 'read', sheet: 'santunan'})
+                ]);
+
+                const totalAnggota = anggotaRes.data.filter(a => a.status === 'Aktif').length;
+                const totalIuran = iuranRes.data.reduce((sum, i) => sum + parseInt(i.nominal || 0), 0);
+                const totalSantunan = santunanRes.data.reduce((sum, s) => sum + parseInt(s.nominal || 0), 0);
+                const saldo = totalIuran - totalSantunan;
+
+                content.innerHTML = `
+                    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+                        ${createStatCard('fa-users', 'Anggota Aktif', totalAnggota, 'text-blue-500', 'bg-blue-100 dark:bg-blue-900/30')}
+                        ${createStatCard('fa-arrow-down', 'Total Iuran Masuk', formatRp(totalIuran), 'text-green-500', 'bg-green-100 dark:bg-green-900/30')}
+                        ${createStatCard('fa-arrow-up', 'Total Santunan Keluar', formatRp(totalSantunan), 'text-red-500', 'bg-red-100 dark:bg-red-900/30')}
+                        ${createStatCard('fa-wallet', 'Saldo Kas', formatRp(saldo), 'text-primary', 'bg-emerald-100 dark:bg-emerald-900/30')}
+                    </div>
+                    <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+                        <h3 class="font-bold text-lg mb-4">Grafik Keuangan</h3>
+                        <div style="height: 300px"><canvas id="financeChart"></canvas></div>
+                    </div>
+                `;
+                
+                // Chart
+                const ctx = document.getElementById('financeChart').getContext('2d');
+                new Chart(ctx, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Pemasukan (Iuran)', 'Pengeluaran (Santunan)', 'Saldo'],
+                        datasets: [{
+                            label: 'Rupiah',
+                            data: [totalIuran, totalSantunan, saldo < 0 ? 0 : saldo],
+                            backgroundColor: ['#10b981', '#ef4444', '#064e3b'],
+                            borderRadius: 8
+                        }]
+                    },
+                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true } } }
+                });
+
+            } catch(e) {
+                content.innerHTML = `<div class="bg-red-100 text-red-700 p-4 rounded-lg">Error memuat data: ${e.message}</div>`;
+            }
+        }
+
+        function createStatCard(icon, title, value, color, bgColor) {
+            return `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg flex items-center space-x-4">
+                    <div class="p-4 rounded-full ${bgColor}"><i class="fa-solid ${icon} text-2xl ${color}"></i></div>
+                    <div><p class="text-sm text-gray-500 dark:text-gray-400">${title}</p><h3 class="text-xl font-bold">${value}</h3></div>
+                </div>`;
+        }
+
+        // --- ANGGOTA ---
+        async function renderAnggota() {
+            const content = document.getElementById('pageContent');
+            const res = await apiRequest({action: 'read', sheet: 'anggota'});
+            let rows = '';
+            res.data.forEach((a, idx) => {
+                rows += `<tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3">${idx+1}</td><td class="p-3 font-medium">${a.nama}</td><td class="p-3">${a.noHP}</td>
+                    <td class="p-3"><span class="px-2 py-1 text-xs rounded-full ${a.status==='Aktif'?'bg-green-100 text-green-700':'bg-red-100 text-red-700'}">${a.status}</span></td>
+                    <td class="p-3 no-print">
+                        <button onclick="editAnggota(${a._row}, '${a.id}')" class="text-blue-500 hover:text-blue-700 mr-2"><i class="fa-solid fa-edit"></i></button>
+                        <button onclick="deleteData('anggota', ${a._row})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+
+            content.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <input type="text" id="searchAnggota" onkeyup="searchTable('anggotaTable', this.value)" placeholder="Cari anggota..." class="p-2 border rounded-lg dark:bg-gray-700 dark:border-gray-600 w-full md:w-1/3">
+                        <button onclick="showFormAnggota()" class="bg-primary hover:bg-accent text-white px-4 py-2 rounded-lg ml-4 whitespace-nowrap"><i class="fa-solid fa-plus mr-2"></i>Tambah</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left" id="anggotaTable">
+                            <thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-3">#</th><th class="p-3">Nama</th><th class="p-3">No HP</th><th class="p-3">Status</th><th class="p-3 no-print">Aksi</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="modalAnggota" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto">
+                        <h2 id="formAnggotaTitle" class="text-xl font-bold mb-4">Tambah Anggota</h2>
+                        <input type="hidden" id="agRow">
+                        <div class="space-y-4">
+                            <div><label class="text-sm font-medium">Nama Lengkap</label><input id="agNama" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div><label class="text-sm font-medium">Nomor KK</label><input id="agKK" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div><label class="text-sm font-medium">Alamat</label><input id="agAlamat" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="text-sm font-medium">RT/RW</label><input id="agRtRw" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                                <div><label class="text-sm font-medium">No HP</label><input id="agHP" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="text-sm font-medium">Status</label>
+                                    <select id="agStatus" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1">
+                                        <option>Aktif</option><option>Nonaktif</option>
+                                    </select>
+                                </div>
+                                <div><label class="text-sm font-medium">Tgl Bergabung</label><input id="agTgl" type="date" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            </div>
+                        </div>
+                        <div class="flex justify-end mt-6 space-x-2">
+                            <button onclick="closeModal('modalAnggota')" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg">Batal</button>
+                            <button onclick="saveAnggota()" class="px-4 py-2 bg-primary text-white rounded-lg">Simpan</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        function showFormAnggota(row=null, id=null, data=null) {
+            document.getElementById('formAnggotaTitle').innerText = row ? 'Edit Anggota' : 'Tambah Anggota';
+            document.getElementById('agRow').value = row || '';
+            if(data) {
+                document.getElementById('agNama').value = data.nama;
+                document.getElementById('agKK').value = data.noKK;
+                document.getElementById('agAlamat').value = data.alamat;
+                document.getElementById('agRtRw').value = data.rtRw;
+                document.getElementById('agHP').value = data.noHP;
+                document.getElementById('agStatus').value = data.status;
+                document.getElementById('agTgl').value = data.tglBergabung;
+            } else {
+                document.querySelectorAll('#modalAnggota input:not(#agRow), #modalAnggota select').forEach(el => el.value = '');
+            }
+            document.getElementById('modalAnggota').classList.remove('hidden');
+        }
+
+        async function editAnggota(row, id) {
+            const res = await apiRequest({action: 'read', sheet: 'anggota'});
+            const data = res.data.find(d => d._row === row);
+            showFormAnggota(row, id, data);
+        }
+
+        async function saveAnggota() {
+            const row = document.getElementById('agRow').value;
+            const id = row ? document.getElementById('agNama').dataset.id : generateId('AGR');
+            const payload = [
+                id,
+                document.getElementById('agNama').value,
+                document.getElementById('agKK').value,
+                document.getElementById('agAlamat').value,
+                document.getElementById('agRtRw').value,
+                document.getElementById('agHP').value,
+                document.getElementById('agStatus').value,
+                document.getElementById('agTgl').value
+            ];
+
+            if(!payload[1]) return alert('Nama harus diisi!');
+
+            const params = row ? { action: 'update', sheet: 'anggota', row: row, data: JSON.stringify(payload) } 
+                               : { action: 'create', sheet: 'anggota', data: JSON.stringify(payload) };
+            
+            await apiRequest(params);
+            closeModal('modalAnggota');
+            showPage('anggota');
+        }
+
+        // --- IURAN ---
+        async function renderIuran() {
+            const content = document.getElementById('pageContent');
+            const [iuranRes, anggotaRes] = await Promise.all([
+                apiRequest({action: 'read', sheet: 'iuran'}),
+                apiRequest({action: 'read', sheet: 'anggota'})
+            ]);
+
+            let rows = '';
+            iuranRes.data.forEach((i, idx) => {
+                rows += `<tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3">${idx+1}</td><td class="p-3 font-medium">${i.namaAnggota}</td><td class="p-3">${i.bulan} ${i.tahun}</td>
+                    <td class="p-3 text-green-600 font-medium">${formatRp(i.nominal)}</td>
+                    <td class="p-3"><span class="px-2 py-1 text-xs rounded-full ${i.statusBayar==='Lunas'?'bg-green-100 text-green-700':'bg-yellow-100 text-yellow-700'}">${i.statusBayar}</span></td>
+                    <td class="p-3 no-print">
+                        <button onclick="deleteData('iuran', ${i._row})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+
+            let anggotaOptions = '<option value="">-- Pilih Anggota --</option>';
+            anggotaRes.data.forEach(a => anggotaOptions += `<option value="${a.id}" data-nama="${a.nama}">${a.nama}</option>`);
+
+            content.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg">Riwayat Iuran</h3>
+                        <button onclick="document.getElementById('modalIuran').classList.remove('hidden')" class="bg-primary hover:bg-accent text-white px-4 py-2 rounded-lg"><i class="fa-solid fa-plus mr-2"></i>Tambah</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left" id="iuranTable">
+                            <thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-3">#</th><th class="p-3">Nama</th><th class="p-3">Periode</th><th class="p-3">Nominal</th><th class="p-3">Status</th><th class="p-3 no-print">Aksi</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="modalIuran" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg">
+                        <h2 class="text-xl font-bold mb-4">Input Iuran</h2>
+                        <div class="space-y-4">
+                            <div><label class="text-sm font-medium">Anggota</label>
+                                <select id="iuAnggota" onchange="document.getElementById('iuNama').value=this.options[this.selectedIndex].dataset.nama" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1">${anggotaOptions}</select>
+                                <input type="hidden" id="iuNama">
+                            </div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="text-sm font-medium">Bulan</label>
+                                    <select id="iuBulan" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1">
+                                        <option>Januari</option><option>Februari</option><option>Maret</option><option>April</option><option>Mei</option><option>Juni</option><option>Juli</option><option>Agustus</option><option>September</option><option>Oktober</option><option>November</option><option>Desember</option>
+                                    </select>
+                                </div>
+                                <div><label class="text-sm font-medium">Tahun</label><input id="iuTahun" type="number" value="${new Date().getFullYear()}" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            </div>
+                            <div><label class="text-sm font-medium">Nominal</label><input id="iuNominal" type="number" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div><label class="text-sm font-medium">Tanggal Bayar</label><input id="iuTgl" type="date" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="text-sm font-medium">Metode</label><input id="iuMetode" type="text" placeholder="Cash/Transfer" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                                <div><label class="text-sm font-medium">Status</label>
+                                    <select id="iuStatus" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"><option>Lunas</option><option>Belum Lunas</option></select>
+                                </div>
+                            </div>
+                            <div><label class="text-sm font-medium">Keterangan</label><input id="iuKet" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                        </div>
+                        <div class="flex justify-end mt-6 space-x-2">
+                            <button onclick="closeModal('modalIuran')" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg">Batal</button>
+                            <button onclick="saveIuran()" class="px-4 py-2 bg-primary text-white rounded-lg">Simpan</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        async function saveIuran() {
+            const payload = [
+                generateId('IUR'),
+                document.getElementById('iuAnggota').value,
+                document.getElementById('iuNama').value,
+                document.getElementById('iuBulan').value,
+                document.getElementById('iuTahun').value,
+                document.getElementById('iuNominal').value,
+                document.getElementById('iuTgl').value,
+                document.getElementById('iuMetode').value,
+                document.getElementById('iuStatus').value,
+                document.getElementById('iuKet').value
+            ];
+            if(!payload[1] || !payload[5]) return alert('Anggota dan Nominal wajib diisi!');
+            await apiRequest({ action: 'create', sheet: 'iuran', data: JSON.stringify(payload) });
+            closeModal('modalIuran');
+            showPage('iuran');
+        }
+
+        // --- SANTUNAN ---
+        async function renderSantunan() {
+            const content = document.getElementById('pageContent');
+            const res = await apiRequest({action: 'read', sheet: 'santunan'});
+            let rows = '';
+            res.data.forEach((s, idx) => {
+                rows += `<tr class="border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700">
+                    <td class="p-3">${idx+1}</td><td class="p-3 font-medium">${s.namaAlmarhum}</td><td class="p-3">${s.tglMeninggal}</td>
+                    <td class="p-3 text-red-600 font-medium">${formatRp(s.nominal)}</td>
+                    <td class="p-3 no-print">
+                        <button onclick="deleteData('santunan', ${s._row})" class="text-red-500 hover:text-red-700"><i class="fa-solid fa-trash"></i></button>
+                    </td>
+                </tr>`;
+            });
+
+            content.innerHTML = `
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="font-bold text-lg">Data Santunan</h3>
+                        <button onclick="document.getElementById('modalSantunan').classList.remove('hidden')" class="bg-primary hover:bg-accent text-white px-4 py-2 rounded-lg"><i class="fa-solid fa-plus mr-2"></i>Tambah</button>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full text-left">
+                            <thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-3">#</th><th class="p-3">Almarhum/ah</th><th class="p-3">Tgl Meninggal</th><th class="p-3">Nominal</th><th class="p-3 no-print">Aksi</th></tr></thead>
+                            <tbody>${rows}</tbody>
+                        </table>
+                    </div>
+                </div>
+                <div id="modalSantunan" class="hidden fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+                    <div class="bg-white dark:bg-gray-800 p-8 rounded-xl shadow-2xl w-full max-w-lg">
+                        <h2 class="text-xl font-bold mb-4">Input Santunan</h2>
+                        <div class="space-y-4">
+                            <div><label class="text-sm font-medium">Nama Almarhum/Almarhumah</label><input id="snNama" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div><label class="text-sm font-medium">Nama Keluarga</label><input id="snKeluarga" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div class="grid grid-cols-2 gap-4">
+                                <div><label class="text-sm font-medium">Tgl Meninggal</label><input id="snTgl" type="date" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                                <div><label class="text-sm font-medium">Nominal</label><input id="snNominal" type="number" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            </div>
+                            <div><label class="text-sm font-medium">Alamat</label><input id="snAlamat" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div><label class="text-sm font-medium">Keterangan</label><input id="snKet" type="text" class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                            <div><label class="text-sm font-medium">Link Dokumen/Foto (Google Drive)</label><input id="snDokumen" type="url" placeholder="https://drive.google.com/..." class="w-full p-2 border rounded-lg dark:bg-gray-700 mt-1"></div>
+                        </div>
+                        <div class="flex justify-end mt-6 space-x-2">
+                            <button onclick="closeModal('modalSantunan')" class="px-4 py-2 bg-gray-200 dark:bg-gray-600 rounded-lg">Batal</button>
+                            <button onclick="saveSantunan()" class="px-4 py-2 bg-primary text-white rounded-lg">Simpan</button>
+                        </div>
+                    </div>
+                </div>`;
+        }
+
+        async function saveSantunan() {
+            const payload = [
+                generateId('SAN'),
+                document.getElementById('snNama').value,
+                document.getElementById('snKeluarga').value,
+                document.getElementById('snTgl').value,
+                document.getElementById('snAlamat').value,
+                document.getElementById('snNominal').value,
+                document.getElementById('snKet').value,
+                document.getElementById('snDokumen').value || '-'
+            ];
+            if(!payload[1] || !payload[5]) return alert('Nama dan Nominal wajib diisi!');
+            await apiRequest({ action: 'create', sheet: 'santunan', data: JSON.stringify(payload) });
+            closeModal('modalSantunan');
+            showPage('santunan');
+        }
+
+        // --- LAPORAN ---
+        async function renderLaporan() {
+            const content = document.getElementById('pageContent');
+            const [iuranRes, santunanRes] = await Promise.all([
+                apiRequest({action: 'read', sheet: 'iuran'}),
+                apiRequest({action: 'read', sheet: 'santunan'})
+            ]);
+
+            const totalIuran = iuranRes.data.reduce((sum, i) => sum + parseInt(i.nominal || 0), 0);
+            const totalSantunan = santunanRes.data.reduce((sum, s) => sum + parseInt(s.nominal || 0), 0);
+
+            content.innerHTML = `
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6 no-print">
+                    ${createStatCard('fa-arrow-down', 'Total Pemasukan', formatRp(totalIuran), 'text-green-500', 'bg-green-100 dark:bg-green-900/30')}
+                    ${createStatCard('fa-arrow-up', 'Total Pengeluaran', formatRp(totalSantunan), 'text-red-500', 'bg-red-100 dark:bg-red-900/30')}
+                    ${createStatCard('fa-balance-scale', 'Saldo Kas', formatRp(totalIuran - totalSantunan), 'text-primary', 'bg-emerald-100 dark:bg-emerald-900/30')}
+                </div>
+                <div class="bg-white dark:bg-gray-800 p-6 rounded-xl shadow-lg">
+                    <div class="flex justify-between items-center mb-4 no-print">
+                        <h3 class="font-bold text-lg">Laporan Keuangan</h3>
+                        <div class="space-x-2">
+                            <button onclick="window.print()" class="bg-gray-200 dark:bg-gray-600 px-4 py-2 rounded-lg"><i class="fa-solid fa-print mr-2"></i>Cetak</button>
+                        </div>
+                    </div>
+                    <h4 class="font-bold text-green-600 mb-2">Pemasukan (Iuran)</h4>
+                    <table class="w-full text-left mb-6 border-b dark:border-gray-700 pb-4">
+                        <thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-2">Tanggal</th><th class="p-2">Nama</th><th class="p-2">Periode</th><th class="p-2">Nominal</th></tr></thead>
+                        <tbody>
+                            ${iuranRes.data.map(i => `<tr class="border-b dark:border-gray-700"><td class="p-2">${i.tglBayar}</td><td class="p-2">${i.namaAnggota}</td><td class="p-2">${i.bulan} ${i.tahun}</td><td class="p-2 text-green-600">${formatRp(i.nominal)}</td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                    <h4 class="font-bold text-red-600 mb-2">Pengeluaran (Santunan)</h4>
+                    <table class="w-full text-left">
+                        <thead class="bg-gray-100 dark:bg-gray-700"><tr><th class="p-2">Tanggal</th><th class="p-2">Almarhum/ah</th><th class="p-2">Keterangan</th><th class="p-2">Nominal</th></tr></thead>
+                        <tbody>
+                            ${santunanRes.data.map(s => `<tr class="border-b dark:border-gray-700"><td class="p-2">${s.tglMeninggal}</td><td class="p-2">${s.namaAlmarhum}</td><td class="p-2">${s.keterangan}</td><td class="p-2 text-red-600">${formatRp(s.nominal)}</td></tr>`).join('')}
+                        </tbody>
+                    </table>
+                </div>`;
+        }
+
+        // --- GLOBAL UTILS ---
+        function closeModal(id) { document.getElementById(id).classList.add('hidden'); }
+
+        async function deleteData(sheet, row) {
+            if(!confirm('Apakah Anda yakin ingin menghapus data ini?')) return;
+            await apiRequest({action: 'delete', sheet: sheet, row: row});
+            showPage(sheet); // Refresh page
+        }
+
+        function searchTable(tableId, query) {
+            const table = document.getElementById(tableId);
+            const rows = table.querySelectorAll('tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(query.toLowerCase()) ? '' : 'none';
+            });
+        }
+    </script>
+</body>
+</html>
